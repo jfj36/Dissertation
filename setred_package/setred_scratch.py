@@ -300,8 +300,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             weights = np.divide(1, weights, out=np.zeros_like(weights), where= weights != 0 )
 
             weights_sum = weights.sum(axis=1)
-            weights_square_sum = (weights**2).sum(axis=1)            
-
+            weights_square_sum = (weights**2).sum(axis=1)  
 
             # Hypothesis testing    
             jiobs = (iid_observed*weights).sum(axis=1) # jiobs is the observed value of the test statistic
@@ -362,11 +361,11 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             #print(f"Number of labeled instances for retraining: {len(y_label)}")
             if self.htunning:
                 param_grid = self.param_grid
-                grid_search = GridSearchCV(self._base_estimator, param_grid, cv=5)
+                grid_search = GridSearchCV(self._base_estimator, param_grid,scoring='accuracy', cv=5)
                 grid_search.fit(X_label, y_label)
                 # Best parameters
                 best_params = grid_search.best_params_
-                #print(f"Best parameters found: {best_params}")
+                print(f"Best parameters found: {best_params}")
                 self._base_estimator.set_params(**best_params)  # I, Juan Felipe, have added this line to set the best parameters found by GridSearchCV.
                 self._base_estimator.fit(X_label, y_label, **kwargs)  # I, Juan Felipe, have added this line to retrain the base estimator with the best parameters.
             else:
@@ -380,6 +379,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 print(report)
         
         self.prior_probabilities_ = calculate_prior_probability(y_label)
+        self.y_pseudolabel = y_
         self.p_wrong_ = p_wrong
         self.weights_ = weights
         self.iid_observed_ = iid_observed

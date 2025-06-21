@@ -7,6 +7,9 @@ import os
 
 import matplotlib.colors as mcolors
 from sklearn.datasets import make_classification, make_blobs
+from sklearn.model_selection import train_test_split
+
+from sklearn.preprocessing import StandardScaler
 from sslearn.model_selection import artificial_ssl_dataset
 
 
@@ -28,7 +31,19 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
                        random_state = 42)
     y_ori = y_ori % K
 
-    X, y, X_unlabel, y_unlabel = artificial_ssl_dataset(X_ori, y_ori, label_rate=0.01, random_state=42)
+    X,X_test,y,y_test = train_test_split(X_ori, y_ori, test_size=0.25, random_state=42)
+
+    X, y, X_unlabel, y_unlabel = artificial_ssl_dataset(X, y, label_rate=0.01, random_state=42)
+
+    # Standardize the explanatory variables (features)
+    scaler = StandardScaler()
+
+    # Fit scaler on the full original dataset (or on labeled only if preferred)
+
+    # Apply standardization
+    X_ori = scaler.fit_transform(X_ori)
+    X = scaler.transform(X)
+    X_unlabel = scaler.transform(X_unlabel)
 
     if export_path is not None:
         np.save(os.path.join(export_path, 'X_ori.npy'), X_ori)
@@ -37,5 +52,7 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
         np.save(os.path.join(export_path, 'y.npy'), y)
         np.save(os.path.join(export_path, 'X_unlabel.npy'), X_unlabel)
         np.save(os.path.join(export_path, 'y_unlabel.npy'), y_unlabel)
+        np.save(os.path.join(export_path, 'X_test.npy'), X_test)
+        np.save(os.path.join(export_path, 'y_test.npy'), y_test)
 
     return  X_ori, y_ori, X, y, X_unlabel, y_unlabel
