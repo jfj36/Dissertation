@@ -39,6 +39,3 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
         np.save(os.path.join(export_path, 'y_unlabel.npy'), y_unlabel)
 
     return  X_ori, y_ori, X, y, X_unlabel, y_unlabel
-
-
-
