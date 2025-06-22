@@ -362,12 +362,14 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             if self.htunning:
                 param_grid = self.param_grid
                 grid_search = GridSearchCV(self._base_estimator, param_grid,scoring='accuracy', cv=5)
-                grid_search.fit(X_label, y_label)
+                # Train val split
+                X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label, y_label, test_size=0.4, random_state=random_state)
+                grid_search.fit(X_reval, y_reval)
                 # Best parameters
                 best_params = grid_search.best_params_
                 print(f"Best parameters found: {best_params}")
                 self._base_estimator.set_params(**best_params)  # I, Juan Felipe, have added this line to set the best parameters found by GridSearchCV.
-                self._base_estimator.fit(X_label, y_label, **kwargs)  # I, Juan Felipe, have added this line to retrain the base estimator with the best parameters.
+                self._base_estimator.fit(X_retrain, y_retrain, **kwargs)  # I, Juan Felipe, have added this line to retrain the base estimator with the best parameters.
             else:
                 self._base_estimator.fit(X_label, y_label, **kwargs)    # I, Juan Felipe, have added this line to retrain the base estimator in each iteration.
             
