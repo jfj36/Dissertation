@@ -59,6 +59,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         n_simulations=100,
         X_label_real =None,
         y_label_real =None,
+        y_unlabel=None,
+        messages=True,
         view=100
     ):
     
@@ -101,7 +103,9 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         self.n_simulations = n_simulations
         self.X_label_real = X_label_real
         self.y_label_real = y_label_real
+        self.y_unlabel = y_unlabel
         self.view = view
+        self.messages = messages
 
 
     def get_dataset(self, X, y):
@@ -219,7 +223,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
         """
         random_state = check_random_state(self.random_state)
-
+        y_unlabel = self.y_unlabel
         X_label, y_label, X_unlabel = self.get_dataset(X, y)
 
         is_df = isinstance(X_label, pd.DataFrame)
@@ -234,21 +238,20 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
         self._base_estimator.fit(X_label, y_label, **kwargs)
 
-        y_probabilities = calculate_prior_probability(y_label)
-
-        #print(f"Prior probabilities: {y_probabilities}")
+        # Should probabilities change every iteration or may it keep with the first L?
+        y_probabilities = calculate_prior_probability(y_label) 
 
         sort_idx = np.argsort(list(y_probabilities.keys()))
 
         if X_unlabel.shape[0] == 0:
             return self
         iteration = 0
+        accuracy = []
         for _ in range(self.max_iterations):
             iteration += 1
-            if iteration % self.view  == 0:
-                print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
-            
-            U_ = resample(X_unlabel, replace = False, n_samples = pool, random_state = random_state)
+            # Resample unlabel candidates            
+            U_, yU_ = resample(X_unlabel,y_unlabel, replace = False, n_samples = pool, random_state = random_state)
+
 
             if is_df:
                 U_ = pd.DataFrame(U_, columns = X_label.columns)
@@ -259,12 +262,15 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             class_predicted = np.argmax(raw_predictions, axis = 1)
             # Unless a better understandinig is given, only the size of L will be used as maximal size of the candidate set. 
             indexes = predictions.argsort()[-each_iteration_candidates:]
+            #indexes =  np.where(predictions > 0.90)[0]
 
             # L_ is a set with the most confident predictions according to the classifier
             if is_df:
                 L_ = U_.iloc[indexes]
             else:
                 L_ = U_[indexes]
+                yL_ = yU_[indexes]
+
             # Vector with the predictions
             y_ = np.array(
                 list(
@@ -273,7 +279,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                         class_predicted[indexes],
                     )
                 )
-            )
+            )            
 
             if is_df:
                 pre_L = pd.concat([X_label, L_])
@@ -288,9 +294,9 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                        
             # Keep only weights for L_ the set that contains the most confident predictions according to the classifier
             # And keep the connections with the labelled instances
-            weights = weights[-L_.shape[0]:, : X_label.shape[0]]
-            iid_observed = iid_observed[-L_.shape[0]:, :X_label.shape[0]]
-            #print(f"Shape of weights: {weights.shape}")
+            weights = weights[-L_.shape[0]:, :] #: X_label.shape[0]]
+            iid_observed = iid_observed[-L_.shape[0]:, :] # :X_label.shape[0]]
+            
 
             idx = np.searchsorted(np.array(list(y_probabilities.keys())), y_, sorter = sort_idx )
             p_wrong = 1 - np.asarray(np.array(list(y_probabilities.values())))[sort_idx][idx] # idx is a vector with L_.shape[0] values
@@ -314,7 +320,6 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             # p-value observed
             oiobs = norm.sf(abs(zobs), 0, 1) # p-value observed, using the survival function
 
-
             # Simulation 
             sim_results = self.simulate_ji_matrix(
                 p_wrong,
@@ -336,8 +341,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 L_filtered = L_.iloc[to_add, :]
             else:
                 L_filtered = L_[to_add, :]
+                yL_filtered = yL_[to_add]
             
             y_filtered = y_[to_add]
+            
 
             if is_df:
                 X_label = pd.concat([X_label, L_filtered])
@@ -354,32 +361,50 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 X_unlabel = X_unlabel.drop(index=X_unlabel.index[to_delete])
             else:
                 X_unlabel = np.delete(X_unlabel, to_delete, axis=0)
+                y_unlabel = np.delete(y_unlabel, to_delete)
+
+            #Append accuracy
+            accuracy.append(self._base_estimator.score(L_filtered, yL_filtered))
+            #print(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")
+            
+            #print(f"Iteration {iteration}: Report of the base estimator: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
 
             # Why the classifier was not retrained in each iteration?            
-            
             self._base_estimator = skclone(self.base_estimator)
             #print(f"Number of labeled instances for retraining: {len(y_label)}")
             if self.htunning:
                 param_grid = self.param_grid
                 grid_search = GridSearchCV(self._base_estimator, param_grid,scoring='accuracy', cv=5)
-                # Train val split
-                X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label, y_label, test_size=0.4, random_state=random_state)
+                # Train validation split
+                X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label, y_label, 
+                                                                          test_size=0.3, 
+                                                                          random_state=random_state,
+                                                                          stratify=y_label)                
                 grid_search.fit(X_reval, y_reval)
                 # Best parameters
-                best_params = grid_search.best_params_
-                print(f"Best parameters found: {best_params}")
+                best_params = grid_search.best_params_                 
                 self._base_estimator.set_params(**best_params)  # I, Juan Felipe, have added this line to set the best parameters found by GridSearchCV.
                 self._base_estimator.fit(X_retrain, y_retrain, **kwargs)  # I, Juan Felipe, have added this line to retrain the base estimator with the best parameters.
             else:
                 self._base_estimator.fit(X_label, y_label, **kwargs)    # I, Juan Felipe, have added this line to retrain the base estimator in each iteration.
             
             # Simulation checkings
-            if (iteration % self.view == 0) and (len(self.X_label_real) > 0):
-                y_pred = self._base_estimator.predict(self.X_label_real)
-                # Generate the classification report
-                report = classification_report(self.y_label_real, y_pred)           
-                print(report)
+            if (iteration % self.view  == 0 )and (self.messages):
+                print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
+                print("Distribution of labels in the labeled set:")
+                print(pd.Series(y_label).value_counts())
+                if self.htunning:
+                    print(f"Best parameters found: {best_params}")
+                if (len(self.X_label_real) > 0):
+                    y_pred = self._base_estimator.predict(self.X_label_real)
+                    # Generate the classification report
+                    report = classification_report(self.y_label_real, y_pred)           
+                    print(report)
         
+        self.accuracy_ = accuracy
+        self.XU_ = L_filtered
+        self.yU_ = yL_filtered
+        self._base_estimator.fit(X_label, y_label, **kwargs)    
         self.prior_probabilities_ = calculate_prior_probability(y_label)
         self.y_pseudolabel = y_
         self.p_wrong_ = p_wrong

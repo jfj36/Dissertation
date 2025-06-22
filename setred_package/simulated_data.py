@@ -31,9 +31,9 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
                        random_state = 42)
     y_ori = y_ori % K
 
-    X,X_test,y,y_test = train_test_split(X_ori, y_ori, test_size=0.25, random_state=42)
+    X,X_test,y,y_test = train_test_split(X_ori, y_ori, test_size=0.25, random_state=42, stratify=y_ori)
 
-    X, y, X_unlabel, y_unlabel = artificial_ssl_dataset(X, y, label_rate=0.01, random_state=42)
+    X, y, X_unlabel, y_unlabel = artificial_ssl_dataset(X, y, label_rate=label_rate, random_state=42)
 
     # Standardize the explanatory variables (features)
     scaler = StandardScaler()
@@ -54,5 +54,25 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
         np.save(os.path.join(export_path, 'y_unlabel.npy'), y_unlabel)
         np.save(os.path.join(export_path, 'X_test.npy'), X_test)
         np.save(os.path.join(export_path, 'y_test.npy'), y_test)
+        
+        # Concatenate each matrix X with the corresponding y and export data frames
+        df_X_ori = pd.DataFrame(X_ori)
+        df_y_ori = pd.DataFrame(y_ori, columns=['target'])
+        df_X = pd.DataFrame(X)
+        df_y = pd.DataFrame(y, columns=['target'])
+        df_X_unlabel = pd.DataFrame(X_unlabel)
+        df_y_unlabel = pd.DataFrame(y_unlabel, columns=['target'])
+        df_X_test = pd.DataFrame(X_test)
+        df_y_test = pd.DataFrame(y_test, columns=['target'])
+        df_X_ori = pd.concat([df_X_ori, df_y_ori], axis=1)
+        df_X = pd.concat([df_X, df_y], axis=1)
+        df_X_unlabel = pd.concat([df_X_unlabel, df_y_unlabel], axis=1)
+        df_X_test = pd.concat([df_X_test, df_y_test], axis=1)
+        
+        # Export data frames to CSV files
+        df_X_ori.to_csv(os.path.join(export_path, 'df_ori.csv'), index=False)
+        df_X.to_csv(os.path.join(export_path, 'df_X.csv'), index=False)
+        df_X_unlabel.to_csv(os.path.join(export_path, 'df_unlabel.csv'), index=False)
+        df_X_test.to_csv(os.path.join(export_path, 'df_test.csv'), index=False)
 
-    return  X_ori, y_ori, X, y, X_unlabel, y_unlabel
+    return  X_ori, y_ori, X, y, X_unlabel, y_unlabel, X_test, y_test
