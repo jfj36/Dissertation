@@ -45,7 +45,7 @@ from setred_package import setred_scratch, simulated_data
 from sklearn.model_selection import train_test_split, GridSearchCV
 
 # --- Simulation parameters ---
-m_stred = 1
+m_stred = 100
 n = 17000
 K = 5
 p = 5
@@ -57,7 +57,7 @@ logger.info(f"Simulation config - Samples: {n}, Classes: {K}, Features: {p}, Lab
 
 score_setred = {}
 
-for std in [0.5]:#, 1, 1.5, 2, 2.5, 3, 3.5, 4]:
+for std in [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4]:
     logger.info(f"Generating data with std = {std}")
     
     X_ori, y_ori, X, y, X_unlabel, y_unlabel, X_test, y_test = simulated_data.create_data(
@@ -100,6 +100,7 @@ for std in [0.5]:#, 1, 1.5, 2, 2.5, 3, 3.5, 4]:
     # --- SETRED Simulation ---
     logger.info("Running SETRED with Decision Tree base estimator")
     score = []
+    score_unlabel = []
 
     for i in range(m_stred):
         logger.info(f"SETRED simulation run {i+1}/{m_stred}")
@@ -121,6 +122,8 @@ for std in [0.5]:#, 1, 1.5, 2, 2.5, 3, 3.5, 4]:
         )
         ssl_clf_dt.fit(X, y)
         score_i = ssl_clf_dt.score(X_test, y_test)
+        score_unlabel.append(ssl_clf_dt.score(X_unlabel, y_unlabel))
+
         logger.info(f"Run {i+1} - SETRED Accuracy: {score_i:.4f}")
         score.append(score_i)
 
@@ -134,7 +137,10 @@ for std in [0.5]:#, 1, 1.5, 2, 2.5, 3, 3.5, 4]:
         'score_base_estimator_test': score_base_estimator_test,
         'setred_score': score_mean,
         'setred_std': score_std,
-        'score_list': score
+        'setred_score_unlabel': np.mean(score_unlabel),
+        'setred_score_unlabel_std': np.std(score_unlabel),
+        'score_list': score,
+        'score_unlabel_list': score_unlabel
     }
 
 
