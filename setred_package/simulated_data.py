@@ -76,3 +76,5 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
         df_X_test.to_csv(os.path.join(export_path, 'df_test.csv'), index=False)
 
     return  X_ori, y_ori, X, y, X_unlabel, y_unlabel, X_test, y_test
+
+

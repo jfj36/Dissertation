@@ -251,7 +251,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             iteration += 1
             # Resample unlabel candidates            
             U_, yU_ = resample(X_unlabel,y_unlabel, replace = False, n_samples = pool, random_state = random_state)
-
+            #U_ = resample(X_unlabel, replace = False, n_samples = pool, random_state = random_state)
 
             if is_df:
                 U_ = pd.DataFrame(U_, columns = X_label.columns)
@@ -365,16 +365,16 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
             #Append accuracy
             accuracy.append(self._base_estimator.score(L_filtered, yL_filtered))
-            #print(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")
+            print(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")
             
-            #print(f"Iteration {iteration}: Report of the base estimator: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
+            print(f"Iteration {iteration}: Report of the base estimator: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
 
             # Why the classifier was not retrained in each iteration?            
             self._base_estimator = skclone(self.base_estimator)
             #print(f"Number of labeled instances for retraining: {len(y_label)}")
             if self.htunning:
                 param_grid = self.param_grid
-                grid_search = GridSearchCV(self._base_estimator, param_grid,scoring='accuracy', cv=5)
+                grid_search = GridSearchCV(self._base_estimator, param_grid,scoring='accuracy', cv=5,error_score=np.nan)
                 # Train validation split
                 X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label, y_label, 
                                                                           test_size=0.3, 
