@@ -1,0 +1,11 @@
+{
+    "std_0.5": {
+        "score_base_estimator_val": 1.0,
+        "score_base_estimator_test": 1.0,
+        "setred_score": 0.9991176470588236,
+        "setred_std": 0.0,
+        "score_list": [
+            0.9991176470588236
+        ]
+    }
+}

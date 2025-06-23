@@ -26,12 +26,17 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
     p : int number of features
     std : float standard deviation of the clusters
     """
-    X_ori, y_ori =  make_blobs(n_samples = n, n_features = p,
-                       centers = kcenters, cluster_std =std,
-                       random_state = 42)
+    X_ori, y_ori =  make_blobs(
+                            n_samples = n, 
+                            n_features = p,
+                            centers = kcenters,
+                            cluster_std =std,
+                            random_state = 42,
+                            center_box=(-10.0, 10.0)
+                            )
     y_ori = y_ori % K
 
-    X,X_test,y,y_test = train_test_split(X_ori, y_ori, test_size=0.25, random_state=42, stratify=y_ori)
+    X,X_test,y,y_test = train_test_split(X_ori, y_ori, test_size=0.2, random_state=42, stratify=y_ori)
 
     X, y, X_unlabel, y_unlabel = artificial_ssl_dataset(X, y, label_rate=label_rate, random_state=42)
 
@@ -44,6 +49,7 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
     X_ori = scaler.fit_transform(X_ori)
     X = scaler.transform(X)
     X_unlabel = scaler.transform(X_unlabel)
+    X_test = scaler.transform(X_test)
 
     if export_path is not None:
         np.save(os.path.join(export_path, 'X_ori.npy'), X_ori)
@@ -76,5 +82,3 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
         df_X_test.to_csv(os.path.join(export_path, 'df_test.csv'), index=False)
 
     return  X_ori, y_ori, X, y, X_unlabel, y_unlabel, X_test, y_test
-
-
