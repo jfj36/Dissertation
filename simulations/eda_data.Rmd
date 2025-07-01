@@ -1,0 +1,347 @@
+---
+title: "Data simulation"
+author: "jfja"
+output:
+  bookdown::html_document2: 
+    fig_caption: yes
+    number_sections: no
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+    code_download: yes
+---
+
+
+```{r libraries,echo= FALSE, message=FALSE, warning=FALSE}
+# include your libraries here
+# use echo = FALSE if you do not want the Code button to appear
+rm(list = ls())
+library(tidyverse)
+# Library for plotting
+library(ggplot2) 
+library(gridExtra)
+library(ggridges)
+library(GGally)
+library(kableExtra) # for nicer tables
+
+```
+
+# Import data
+
+Four dataframes are imported:
+
+- `data_ori`: It contains the original data with labels.
+- `data_ss`: It contains the semi-supervised data, which includes both labeled and unlabeled data.
+- `data_label`: It contains the labeled data of the unlabeled data.
+- `data_test`: It contains the test data.
+
+```{r,echo=FALSE}
+# Original data
+data_ori = read.csv("../data/df_ori.csv")
+data_ori = data_ori %>% 
+            mutate(target = as.factor(target)) # Convert target to factor for classification
+# Semi Supervised data
+data_ss = read.csv("../data/df_X.csv")
+data_ss = data_ss %>% 
+            mutate(target = as.factor(target)) # Convert target to factor for classification
+# Unlabel data
+data_label = read.csv("../data/df_unlabel.csv")
+data_label = data_label %>% 
+            mutate(target = as.factor(target)) # Convert target to factor for classification
+# Test data
+data_test = read.csv("../data/df_test.csv")
+data_test = data_test %>% 
+            mutate(target = as.factor(target)) # Convert target to factor for classification
+```
+
+
+# Simulation explanation
+The data was simulated using the function `make_blobs` from the `sklearn.datasets` library in Python. The function generates Gaussian blobs for clustering. The data was generated with the following parameters:
+
+- Number of samples: 17000
+- Number of classes: 5 because there five types of myositis
+- Number of features: 5
+- Number of test samples: 3400 (20% of the total samples)
+- Number of semi-supervised samples: 13600 (80% of the total samples)
+- Label rate for semi-supervised learning: 0.01 (1% of the data is labeled)
+- Number of labeled samples: 136 (1% of the semi-supervised data)
+- Standard deviation of the clusters: 2
+- Number of centers (classes) for the blobs: 5
+
+# Data exploration
+
+
+
+```{r, echo=FALSE}
+# Table with the dimensions of all data frames
+df_dimensions <-
+                data.frame(
+                  Data = c("Original Data", "Semi Supervised Data", "Labeled Data", "Test Data"),
+                  Rows = c(nrow(data_ori), nrow(data_ss), nrow(data_label), nrow(data_test)),
+                  Columns = c(ncol(data_ori), ncol(data_ss), ncol(data_label), ncol(data_test))-1,
+                  labeled = c(sum(data_ori$target != '-1'), 
+                              sum(data_ss$target != '-1'), 
+                              sum(data_label$target != '-1'), 
+                              sum(data_test$target != '-1')),
+                  unlabeled = c(sum(data_ori$target == '-1'), 
+                              sum(data_ss$target == '-1'), 
+                              sum(data_label$target == '-1'), 
+                              sum(data_test$target == '-1'))
+                )
+
+df_dimensions %>%
+  kable("html", caption = "Dimensions of the data frames") %>%
+  kable_styling("striped", full_width = F) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2:5, width = "3cm") %>%
+  row_spec(0, bold = TRUE, background = "#D9EDF7") %>%
+  row_spec(1:nrow(df_dimensions), background = "#F5F5F5")
+
+```
+
+## Descritive Statistics
+
+ 
+
+```{r, echo=FALSE}
+# Descriptive statistics for the original data
+ds_ori = data_ori %>% 
+          select(-target) %>% 
+          summarise(across(everything(),
+                           list(mean = mean,
+                                sd = sd,
+                                min = min,
+                                q25 = ~quantile(., 0.25),
+                                median = median,
+                                q75 = ~quantile(., 0.75),
+                                max = max ))) %>%
+          mutate(source = "Original Data") 
+          
+# Descriptive statistics for the semi-supervised data
+ds_ss = data_ss %>% 
+          select(-target) %>% 
+                    summarise(across(everything(),
+                           list(
+                                mean = mean,
+                                sd = sd,
+                                min = min,
+                                q25 = ~quantile(., 0.25),
+                                median = median,
+                                q75 = ~quantile(., 0.75),
+                                max = max ))) %>%
+          mutate(source = "Semi Supervised Data")
+# Descriptive statistics for the labeled data in the ss data
+ds_label = data_ss %>% 
+          filter(target != '-1') %>%
+          select(-target) %>% 
+                    summarise(across(everything(),
+                           list(
+                                mean = mean,
+                                sd = sd,
+                                min = min,
+                                q25 = ~quantile(., 0.25),
+                                median = median,
+                                q75 = ~quantile(., 0.75),
+                                max = max ))) %>%
+          mutate(source = "Labeled Data")
+
+# Descriptive statistics for the test data
+ds_test = data_test %>% 
+          select(-target) %>% 
+                   summarise(across(everything(),
+                           list(mean = mean,
+                                sd = sd,
+                                min = min,
+                                q25 = ~quantile(., 0.25),
+                                median = median,
+                                q75 = ~quantile(., 0.75),
+                                max = max ))) %>%
+            mutate(source = "Test Data")
+
+# Union of the tables
+ds = bind_rows(ds_ori, ds_ss, ds_label, ds_test)
+ds = ds %>% 
+      mutate(across(where(is.numeric), ~ round(.,2)))
+```
+
+
+The boxplots below show the distribution of the features in the original data, semi-supervised data, labeled data, and test data. The boxplots will help us to visualize the distribution of the features and to identify any outliers in the data.
+
+
+```{r, echo=FALSE}
+# Concatenate all the data frames for plotting
+df = data_ori %>% 
+  mutate(source = "Original Data") %>% 
+  bind_rows(data_ss %>% 
+            filter(target == '-1') %>%
+            mutate(source = "Unlabeled Data")) %>% 
+  bind_rows(data_ss %>% 
+            filter(target != '-1') %>%
+            mutate(source = "Labeled Data")) %>% 
+  bind_rows(data_test %>% 
+            mutate(source = "Test Data"))
+
+df$source = factor(df$source, 
+                levels = c("Original Data", "Unlabeled Data", "Labeled Data", "Test Data"))
+
+```
+
+### Each Variable {.tabset}
+
+#### Feature 0 
+
+```{r}
+df %>% 
+  filter(source != "Unlabeled Data") %>%
+  ggplot(aes(x = source, y = X0)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = source), alpha = 0.5, width = 0.1) +
+  labs(title = "Distribution of Feature 0", x = "Source", y = "Feature 0") +
+  theme_bw() +
+  facet_wrap(~target, scales = "free") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14,hjust = 0.5),
+        legend.title = element_blank(),
+        axis.text.x =  element_blank())
+```
+
+#### Feature 1
+```{r}
+df %>% 
+  filter(source != "Unlabeled Data") %>%
+  ggplot(aes(x = source, y = X1)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = source), alpha = 0.5, width = 0.1) +
+  labs(title = "Distribution of Feature 1", x = "Source", y = "Feature 1") +
+  theme_bw() +
+  facet_wrap(~target, scales = "free") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14,hjust = 0.5),
+        legend.title = element_blank(),
+        axis.text.x =  element_blank())
+```
+
+#### Feature 2
+```{r}
+df %>% 
+  filter(source != "Unlabeled Data") %>%
+  ggplot(aes(x = source, y = X2)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = source), alpha = 0.5, width = 0.1) +
+  labs(title = "Distribution of Feature 2", x = "Source", y = "Feature 2") +
+  theme_bw() +
+  facet_wrap(~target, scales = "free") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14,hjust = 0.5),
+        legend.title = element_blank(),
+        axis.text.x =  element_blank())
+```
+
+#### Feature 3
+
+```{r}
+df %>% 
+  filter(source != "Unlabeled Data") %>%
+  ggplot(aes(x = source, y = X3)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = source), alpha = 0.5, width = 0.1) +
+  labs(title = "Distribution of Feature 3", x = "Source", y = "Feature 3") +
+  theme_bw() +
+  facet_wrap(~target, scales = "free") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14,hjust = 0.5),
+        legend.title = element_blank(),
+        axis.text.x =  element_blank())
+```
+
+#### Feature 4
+```{r}
+df %>% 
+  filter(source != "Unlabeled Data") %>%
+  ggplot(aes(x = source, y = X4)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = source), alpha = 0.5, width = 0.1) +
+  labs(title = "Distribution of Feature 4", x = "Source", y = "Feature 4") +
+  theme_bw() +
+  facet_wrap(~target, scales = "free") +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14,hjust = 0.5),
+        legend.title = element_blank(),
+        axis.text.x =  element_blank())
+```
+
+## Label distribution
+The label distribution shows the number of samples for each class in the original data, semi-supervised data, and test data. The distribution will help us to understand the balance of the classes in the data.
+```{r, echo=FALSE, message=FALSE, warning=FALSE} 
+# Label distribution for the original data
+df %>% 
+  filter(target != '-1') %>%
+  group_by(source, target) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  group_by(source) %>%
+  mutate(total = sum(count)) %>%
+  mutate(prop = count / total * 100) %>%
+  ggplot(aes(x = target, y = prop, fill = target)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  labs(title = "Label Distribution in Original Data", x = "Feature", y = "Count") +
+  theme_bw() +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 14,hjust = 0.5),
+        axis.text.x = element_text(angle = 45, hjust = 1))+
+  facet_wrap(~source, scales = "free") 
+
+```
+
+## Pairs plots {.tabset}
+
+In this section, we will visualize the data using pairs plots. The pairs plots will show the relationships between the features in the data. The original data will be compared with the semi-supervised data, which includes both labeled and unlabeled data. 
+
+### Original data
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Original data
+data_ori %>% 
+        ggpairs(columns = 1:5,
+                aes(color = target,  
+                alpha = 0.5))
+```
+
+### Semi-supervised data Labeled
+```{r}
+# Semi Supervised data
+#my_colors <- c("blue", "green", "purple", "orange","brown")
+
+# Labeled data
+data_ss %>% 
+      filter(target != '-1') %>% 
+        ggpairs(columns = 1:5,
+                aes(color = target, alpha = 0.5)) 
+  #scale_fill_manual(values = my_colors) +
+  #scale_color_manual(values = my_colors)
+
+```
+
+
+### Semi-supervised data Unlabeled
+```{r}
+# Unlabeled data
+data_ss %>% 
+      filter(target == '-1') %>% 
+        ggpairs(columns = 1:5, aes(alpha = 0.5)) +
+  scale_fill_manual(values = 'black') +
+  scale_color_manual(values = 'black')
+```
+
+### Test data
+```{r}
+# Test data
+data_test %>% 
+        ggpairs(columns = 1:5,
+                aes(color = target,  
+                alpha = 0.5))
+```
+
+
+
+

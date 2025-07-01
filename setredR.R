@@ -9,14 +9,16 @@ library(caret)
 
 # Load data
 # Set working directory
-#setwd("~/Library/CloudStorage/OneDrive-UniversityofBath/00_Bath_Master/03_Dissertation/src/Goal1/setred")
+setwd("~/Library/CloudStorage/OneDrive-UniversityofBath/00_Bath_Master/03_Dissertation/src/Goal1/setred")
 
+list.files()
 # List files in the data directory
 list.files('data')
 # Load test data
 test_data = read.csv("data/df_test.csv")
 # Load SSL data
 ssl_data = read.csv("data/df_X.csv")
+ssl_data
 ssl_data = ssl_data %>% mutate(target = ifelse(target == -1,NA, target))
 
 # Target
@@ -35,7 +37,7 @@ m1 <- setred(x = xtrain, y = ytrain, dist = "euclidean",
              learner = caret::knn3, 
              learner.pars = list(k = 1),
              pred = "predict")
-
+?setred
 # Prediction
 pred1 <- predict(m1, as.matrix(xitest))
 table(pred1, yitest)

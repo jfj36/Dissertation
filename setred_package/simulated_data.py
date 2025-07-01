@@ -36,8 +36,12 @@ def create_data(n, kcenters, K, p, std = 2.5, label_rate=0.01, export_path=None)
                             )
     y_ori = y_ori % K
 
+    # Split the dataset into training and test sets
     X,X_test,y,y_test = train_test_split(X_ori, y_ori, test_size=0.2, random_state=42, stratify=y_ori)
-
+    
+    # Create a semi-supervised dataset with a small labeled set 
+    # X and y contain the labeled and unlabeled data
+    # X_unlabel and y_unlabel contain the real labels of the unlabeled data
     X, y, X_unlabel, y_unlabel = artificial_ssl_dataset(X, y, label_rate=label_rate, random_state=42)
 
     # Standardize the explanatory variables (features)

@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.stats import norm
 
 # Import scikit-learn libraries
-from sklearn.neighbors import KNeighborsClassifier, kneighbors_graph
+from sklearn.neighbors import KNeighborsClassifier, kneighbors_graph,NearestNeighbors
 from sklearn.semi_supervised import SelfTrainingClassifier
 from sklearn.base import is_classifier
 from sklearn.ensemble._base import _set_random_states
@@ -158,7 +158,26 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         """Create a neighborhood graph using the kneighbors_graph function."""
         return kneighbors_graph(X, n_neighbors=self.graph_neighbors, mode="distance", metric=self.distance, n_jobs=self.n_jobs).toarray()
 
-
+    def __create_neighborhood_knn(self, X_ref, X_unlabel):
+        """Create a neighborhood graph using the KNeighborsClassifier."""
+        # Fit a knn classifier to the reference data
+        knn = NearestNeighbors(n_neighbors=self.graph_neighbors)
+        knn.fit(X_ref)
+        # Get the distances and indices of the neighbors for the unlabeled data
+        distances, indices = knn.kneighbors(X_unlabel)
+        # Create a weights matrix where the rows correspond to the unlabeled instances
+        # and the columns correspond to the reference instances
+        weights = np.zeros((X_unlabel.shape[0], X_ref.shape[0]))
+        # Fill the weights matrix with the distances
+        for i, (dist, idx) in enumerate(zip(distances, indices)):
+            weights[i, idx] = dist
+        # Add 1 to each weight to avoid division by zero
+        #weights[weights != 0] += 1  # Add 1 to each weight to avoid division by zero
+        # Invert the weights to get the similarity
+        #weights = np.divide(1, weights, out=np.zeros_like(weights), where=weights != 0)
+        # Return the weights matrix
+        return weights
+    
     # Simulation functions
     def simulate_ji_matrix(self,
                             p_wrong,
@@ -310,10 +329,6 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 print("---------------------------------------------------------------")
                 print(f"-------------------Iteration {iteration} Started ------------")
                 print("---------------------------------------------------------------")
-            
-
-
-
             # Resample unlabel candidates            
             if self.y_real_label is not None:
                 U_, yU_ = resample(X_unlabel,y_real_label, replace = False, n_samples = pool, random_state = random_state)
@@ -357,15 +372,13 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             )    
             # Verification of the distribution of predicted classes in the unlabeled set   
             if (self.messages )and (iteration % self.view == 0):
-                print(f"Distribution of predicted classes in the unlabeled set:")
-                # Order by the original class labels
-                print(pd.Series(y_).value_counts().sort_index())
-                
                 if self.y_real_label is not None:
                     print(f"Distribution of real classes in the unlabeled set:")
                     print(pd.Series(yL_).value_counts().sort_index())
-
-
+                print(f"Distribution of the first  pseudolabel (predicted) candidates in the unlabeled set:")
+                # Order by the original class labels
+                print(pd.Series(y_).value_counts().sort_index())
+                
             # Concatenate the labeled instances with the most confident predictions (pseudolabels). 
             if is_df:
                 pre_L = pd.concat([X_label, L_])
@@ -375,13 +388,13 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 pre_yL = np.concatenate((y_label, y_), axis = 0)
 
             # Create the neighborhood graph for the labeled instances and the most confident predictions
-            weights = self.__create_neighborhood(pre_L)            
-            
+            #weights = self.__create_neighborhood(pre_L)      
+                        
             # Create the matrix that indicates if which instances do not have the same class label
             iid_observed = (pre_yL[:, None] != pre_yL[None, :]).astype(int)
                        
             # Keep only weights and indicators for the most confident predictions L_
-            weights = weights[-L_.shape[0]:, : X_label.shape[0]] #add this to compare against the labeled instances
+            #weights = weights[-L_.shape[0]:, : X_label.shape[0]] #add this to compare against the labeled instances
             iid_observed = iid_observed[-L_.shape[0]:, :X_label.shape[0]] #add this to compare against the labeled instances
             
             # Create a vector with the classes of the most confident predictions in a way that matches
@@ -392,6 +405,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             
             # Must weights be the inverse of distance?
             # According to the paper about cut edge statistic the weights are 1/(1+dij)
+            weights = self.__create_neighborhood_knn(X_label, L_)
             weights[weights != 0] += 1 # Add 1 to each weight 
             weights = np.divide(1, weights, out=np.zeros_like(weights), where= weights != 0 )
 
@@ -429,8 +443,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             pvalue = self.compare_to_observed(jiobs, ji_matrix)
             
             # Mask for filtering the instances that are good examples to add to the labeled set
-            to_add = (oiobs < self.rejection_threshold )& (zobs < mu_h0) 
-            #to_add = (pvalue < self.rejection_threshold) #& (zi_matrix[:,1] < mu_h0) # pvalue < alpha and Z_score < mu_h0
+            #to_add = (oiobs < self.rejection_threshold )& (zobs < mu_h0) 
+            to_add = (pvalue < self.rejection_threshold) #& (zi_matrix[:,1] < mu_h0) # pvalue < alpha and Z_score < mu_h0
             
             # Filter the features of instances that are good examples to add to the labeled set
             if is_df:
@@ -471,11 +485,17 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 accuracy.append(self._base_estimator.score(L_filtered, yL_filtered))
                 if (self.messages) and (iteration % self.view == 0):
                     print(f"--------------------------------------------------------------")
-                    print(f"----------------------Simulation------------------------------")
+                    print(f"------Verification after filtering (Cut Edge Statistic)-------")
                     print(f"--------------------------------------------------------------")
-                    print(f"Simulation verification of the real labels of the unlabeled dataset")
+                    print(f"Comparison between the filtered pseudolabels and the real labels of the unlabeled instances")
+                    # distributions
+                    print(f"Distribution of real classes in the unlabeled set:")
+                    print(pd.Series(yL_filtered).value_counts().sort_index())
+                    print(f"Distribution of the filtered pseudolabels in the unlabeled set:")
+                    print(pd.Series(y_filtered).value_counts().sort_index())
                     print(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")               
-                    print(f"Iteration {iteration}: Report of the base estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
+                    print(f"Iteration {iteration}: Report of the estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
+
 
 
             # Retrain the base estimator with the new labeled instances
@@ -497,14 +517,20 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                     print(f"--------------------------------------------------------------")
                     print(f"Verification of the retraining performance")
                     print(f"Iteration {iteration} - Accuracy: {self._base_estimator.score(X_reval, y_reval):.4f}")                                                    
-
+                    
+                    if (self.y_real_label is not None):
+                        print(f"------------------------Updated Estimator---------------------------------------")
+                        print(f"Comparison between the pseudolabels and the real labels of the unlabeled instances")
+                        print(f"Iteration {iteration} - Accuracy: {self._base_estimator.score(L_filtered, yL_filtered):.4f}")
+                        print(f"Iteration {iteration}: Report of the upadated estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
+                        
             else:
                 self._base_estimator.fit(X_label, y_label, **kwargs)    # I, Juan Felipe, have added this line to retrain the base estimator in each iteration.
             
             # Simulation checkings
             if (iteration % self.view  == 0 )and (self.messages):
                 print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
-                print("Distribution of labels in the labeled set:")
+                print("Distribution of labels in the new labeled set:\n")
                 print(pd.Series(y_label).value_counts())
                 if self.htunning:
                     print(f"Best parameters found: {best_params}")
