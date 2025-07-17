@@ -183,7 +183,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
     # Simulation functions
     def simulate_ji_matrix(self,
                             p_wrong, 
-                            iid_observed,                           
+                            iid_permute,                           
                             weights,
                             weights_sum,
                             weights_square_sum,
@@ -232,15 +232,15 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
             elif self.method == 'permute':
                 # Shuffle labels across the whole p_matrix
-                iid_random = iid_observed.copy()
+                iid_random = iid_permute.copy()
                 for row in iid_random:
                     random_state.shuffle(row)
             else:
-                raise ValueError(f"Unknown simulation method: {method}")
+                raise ValueError(f"Unknown simulation method: {self.method}")
 
 
             # Simulate test statistic
-            ji = (iid_random * weights).sum(axis=1)
+            ji = (iid_random * weights).sum(axis=1) 
             ji_matrix[:, s] = ji           
             # Calculate the z-score
             z_score = np.divide((ji - mu_h0), sigma_h0, out=np.zeros_like(sigma_h0), where=sigma_h0 != 0)
@@ -447,12 +447,12 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
             # Simulate the ji matrix for hypothesis testing 
             sim_results = self.simulate_ji_matrix(
-                p_wrong,
-                iid_observed,
-                weights,
-                weights_sum,
-                weights_square_sum,
-                random_state
+                p_wrong=p_wrong,    
+                iid_permute=iid_observed,            
+                weights=weights,
+                weights_sum=weights_sum,
+                weights_square_sum=weights_square_sum,
+                random_state=random_state
             )
             ji_matrix = sim_results["ji_matrix"]
             zi_matrix = sim_results["zi_matrix"]
