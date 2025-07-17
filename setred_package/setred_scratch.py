@@ -251,7 +251,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         ndarray of shape (n_instances,)
             p-values for each instance based on the comparison.
         """ 
-        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)  # count
+        # The lower the value of jobs, the more likely the instance is to be a good example to add to the labeled set.
+        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)  
     
 
     # Fit function
