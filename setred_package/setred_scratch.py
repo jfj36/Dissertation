@@ -62,7 +62,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         n_jobs=None,
         htunning=False,
         param_grid=None,
-        n_simulations=100,
+        n_simulations=100, # Number of iteration to simulate the ji matrix for hypothesis testing.
         X_test =None, # This is a matrix with the test instances to evaluate the model.
         y_test =None, # This is a vector with the real labels of the test instances.
         y_real_label=None, # This is a vector with the real labels of the unlabeled instances.
