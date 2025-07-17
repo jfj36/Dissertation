@@ -63,6 +63,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         htunning=False,
         param_grid=None,
         n_simulations=100, # Number of iteration to simulate the ji matrix for hypothesis testing.
+        method = 'bernoulli', # Method to simulate the ji matrix for hypothesis testing. Options: 'bernoulli' or 'permute'.
         X_test =None, # This is a matrix with the test instances to evaluate the model.
         y_test =None, # This is a vector with the real labels of the test instances.
         y_real_label=None, # This is a vector with the real labels of the unlabeled instances.
@@ -107,6 +108,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         self.htunning = htunning
         self.param_grid = param_grid
         self.n_simulations = n_simulations
+        self.method = method # Method to simulate the ji matrix for hypothesis testing. Options: 'bernoulli' or 'permute'.
         self.X_test = X_test
         self.y_test = y_test
         self.y_real_label = y_real_label 
@@ -180,7 +182,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
     
     # Simulation functions
     def simulate_ji_matrix(self,
-                            p_wrong,
+                            p_wrong, 
+                            iid_observed,                           
                             weights,
                             weights_sum,
                             weights_square_sum,
@@ -222,7 +225,20 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
         for s in range(self.n_simulations):
             # Simulate binary decisions
-            iid_random = random_state.binomial(1, p_matrix)            
+            #iid_random = random_state.binomial(1, p_matrix)
+            if self.method == 'bernoulli':
+                # Simulate binary decisions from Bernoulli
+                iid_random = random_state.binomial(1, p_matrix)
+
+            elif self.method == 'permute':
+                # Shuffle labels across the whole p_matrix
+                iid_random = iid_observed.copy()
+                for row in iid_random:
+                    random_state.shuffle(row)
+            else:
+                raise ValueError(f"Unknown simulation method: {method}")
+
+
             # Simulate test statistic
             ji = (iid_random * weights).sum(axis=1)
             ji_matrix[:, s] = ji           
@@ -391,7 +407,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             # Create the neighborhood graph for the labeled instances and the most confident predictions
             #weights = self.__create_neighborhood(pre_L)      
                         
-            # Create the matrix that indicates if which instances do not have the same class label
+            # Create the matrix that indicates  which instances do not have the same class label
             iid_observed = (pre_yL[:, None] != pre_yL[None, :]).astype(int)
                        
             # Keep only weights and indicators for the most confident predictions L_
@@ -432,6 +448,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             # Simulate the ji matrix for hypothesis testing 
             sim_results = self.simulate_ji_matrix(
                 p_wrong,
+                iid_observed,
                 weights,
                 weights_sum,
                 weights_square_sum,
