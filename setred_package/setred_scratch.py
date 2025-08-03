@@ -546,20 +546,21 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 self._base_estimator.fit(X_label, y_label, **kwargs)    # I, Juan Felipe, have added this line to retrain the base estimator in each iteration.
             
             # Simulation checkings
-            if (iteration % self.view  == 0 )and (self.messages):
-                print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
-                print("Distribution of labels in the new labeled set:\n")
-                print(pd.Series(y_label).value_counts())
-                if self.htunning:
-                    print(f"Best parameters found: {best_params}")
-                if (len(self.X_test) > 0):
-                    y_pred = self._base_estimator.predict(self.X_test)
-                    # Generate the classification report
-                    report = classification_report(self.y_test, y_pred)           
-                    print("--------------------------------------------------------------")
-                    print("Verification of the test set performance")
-                    print(f"Iteration {iteration} - Classification report on the test set:")                    
-                    print(report)
+            if self.y_real_label is not None:             
+                if (iteration % self.view  == 0 )and (self.messages):
+                    print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
+                    print("Distribution of labels in the new labeled set:\n")
+                    print(pd.Series(y_label).value_counts())
+                    if self.htunning:
+                        print(f"Best parameters found: {best_params}")
+                    if (len(self.X_test) > 0):
+                        y_pred = self._base_estimator.predict(self.X_test)
+                        # Generate the classification report
+                        report = classification_report(self.y_test, y_pred)           
+                        print("--------------------------------------------------------------")
+                        print("Verification of the test set performance")
+                        print(f"Iteration {iteration} - Classification report on the test set:")                    
+                        print(report)
             if (self.messages) and (iteration % self.view == 0):
                 print("\n")
                 print("---------------------------------------------------------------")
@@ -567,9 +568,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 print("---------------------------------------------------------------")
             iteration += 1
         
-        self.accuracy_ = accuracy
-        self.XU_ = L_filtered
-        self.yU_ = yL_filtered
+        if self.y_real_label is not None:
+            self.accuracy_ = accuracy
+            self.XU_ = L_filtered
+            self.yU_ = yL_filtered
         self._base_estimator.fit(X_label, y_label, **kwargs)    
         self.prior_probabilities_ = calculate_prior_probability(y_label)
         self.y_pseudolabel = y_
