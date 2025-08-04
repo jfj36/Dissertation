@@ -140,6 +140,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         if isinstance(X, pd.DataFrame):
             is_df = True
             columns = X.columns
+            idx = X.index
 
         X = check_array(X)
         y = check_array(y, ensure_2d=False, dtype=y.dtype.type)
@@ -151,8 +152,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         X_label, y_label = check_X_y(X_label, y_label)
 
         if is_df:
-            X_label = pd.DataFrame(X_label, columns=columns)
-            X_unlabel = pd.DataFrame(X_unlabel, columns=columns)
+            X_label = pd.DataFrame(X_label, columns=columns, index=idx[y != y.dtype.type(-1)])
+            X_unlabel = pd.DataFrame(X_unlabel, columns=columns, index=idx[y == y.dtype.type(-1)])
 
         return X_label, y_label, X_unlabel
 
@@ -572,6 +573,9 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             self.accuracy_ = accuracy
             self.XU_ = L_filtered
             self.yU_ = yL_filtered
+        self.X_label_ = X_label      
+        self.idx_ = X_label.index if is_df else None
+        self.y_label_ = y_label  
         self._base_estimator.fit(X_label, y_label, **kwargs)    
         self.prior_probabilities_ = calculate_prior_probability(y_label)
         self.y_pseudolabel = y_
