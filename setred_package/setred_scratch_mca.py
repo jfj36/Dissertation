@@ -305,11 +305,14 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         # Check if the features are provided
         if mod_features is not None:
             # Check if the features are in the DataFrame
-            if isinstance(X_label, pd.DataFrame):
+            if isinstance(X_label_entire, pd.DataFrame):
                 X_label = X_label_entire[mod_features]
                 X_unlabel = X_unlabel_entire[mod_features]
             else:
-                raise ValueError("mod_features can only be used with DataFrames.")
+                # When X is an array 
+                X_label = X_label_entire[:, mod_features]
+                X_unlabel = X_unlabel_entire[:, mod_features]
+        
         # Check if the graph features are provided
         if graph_features is not None:
             # Check if the features are in the DataFrame
@@ -317,7 +320,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 X_graph = X_label_entire[graph_features]
                 X_ungraph = X_unlabel_entire[graph_features]
             else:
-                raise ValueError("graph_features can only be used with DataFrames.")
+                # When X is an array
+                X_graph = X_label_entire[:, graph_features]
+                X_ungraph = X_unlabel_entire[:, graph_features]
+        
 
 
         # Check if the X_label is a DataFrame or ndarray
@@ -433,11 +439,12 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             if is_df:
                 pre_L = pd.concat([X_label, L_])
                 pre_Lg = pd.concat([X_ungraph, Lg_])
-                pre_yL = pd.concat([y_label, pd.Series(y_)])
+                #pre_yL = pd.concat([y_label, pd.Series(y_)])
             else:
                 pre_L = np.concatenate((X_label, L_), axis = 0)
                 pre_Lg = np.concatenate((X_ungraph, Lg_), axis = 0)
-                pre_yL = np.concatenate((y_label, y_), axis = 0)
+            
+            pre_yL = np.concatenate((y_label, y_), axis = 0)
 
             # Create the neighborhood graph for the labeled instances and the most confident predictions
             #weights = self.__create_neighborhood(pre_L)      
