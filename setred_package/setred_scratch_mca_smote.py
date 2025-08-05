@@ -591,9 +591,11 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                     print(pd.Series(y_filtered).value_counts().sort_index())
                     print(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")               
                     print(f"Iteration {iteration}: Report of the estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
+            
             #--------------------------------------------------------------------------------
             # ------------------------ SMOTE Resampling -------------------------------------
             #--------------------------------------------------------------------------------
+            
             # Perform resample again to retrain the model         
             X_label_entire_smote, y_label_smote = self.sm.fit_resample(X_label_entire, y_label)
             # Check if the features are provided
@@ -612,8 +614,9 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                     # When X is an array
                     X_graph_smote = X_label_entire_smote[:, graph_features]                        
             # Show Distribution of labels in the new labeled set after resampling
-            print(f"Distribution of labels in the new labeled set after resampling:")
+            
             if (self.messages) and (iteration % self.view == 0):
+                print(f"Distribution of labels in the new labeled set after resampling:")
                 print(pd.Series(y_label_smote).value_counts().sort_index())
 
 
