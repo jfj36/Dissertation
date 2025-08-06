@@ -1,13 +1,32 @@
+# Import logging libraries
+import logging
+
+logger = logging.getLogger(__name__)
+# Set the logging level
+logger.setLevel(logging.INFO)
+# Create a console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+# Create a formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Add the formatter to the handler
+console_handler.setFormatter(formatter)
+# Add the handler to the logger
+if not logger.hasHandlers():
+    logger.addHandler(console_handler)
+
+
 # Import basic libraries
 import numpy as np 
 import pandas as pd 
 from scipy.stats import norm
 
 # Import scikit-learn libraries
-from sklearn.neighbors import KNeighborsClassifier, kneighbors_graph,NearestNeighbors
+from sklearn.neighbors import KNeighborsClassifier, kneighbors_graph, NearestNeighbors
 from sklearn.semi_supervised import SelfTrainingClassifier
 from sklearn.base import is_classifier
 from sklearn.ensemble._base import _set_random_states
+
 # Functions for model selection and hyperparameter tuning
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
@@ -19,12 +38,14 @@ from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.metaestimators import available_if
 
 # Base classes
-# BaseEstimator is a helper class provided by scikit-learn to make it easier to create your own custom models or transformers that behave like 
-# any other scikit-learn model. 
-# MetaEstimatorMixin is a mixin class from sksklearn.base to help create meta-estimators, which are estimators that wrap other estimators.
+# BaseEstimator is a helper class provided by scikit-learn to make it easier to create your own custom models
+# or transformers that behave like  any other scikit-learn model. 
+# MetaEstimatorMixin is a mixin class from sksklearn.base to help create meta-estimators,
+# which are estimators that wrap other estimators.
 from sklearn.base import BaseEstimator, MetaEstimatorMixin, ClassifierMixin
 
-# The clone function creates a new copy of an estimator with the same parameters, but without any trained data, without any fitted attributes. 
+# The clone function creates a new copy of an estimator with the same parameters, 
+# but without any trained data, without any fitted attributes. 
 from sklearn.base import clone as skclone 
 
 # Evaluation metrics
@@ -43,8 +64,6 @@ from sklearn.metrics import (
 
 # SSlearn library
 from sslearn.utils import calculate_prior_probability, check_classifier
-from sslearn.model_selection import artificial_ssl_dataset
-from sslearn.wrapper import Setred
 
 
 # ------------------------------------------------------------------------------------------#
@@ -57,7 +76,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         distance="euclidean",
         poolsize=0.25,
         rejection_threshold=0.05,
-        graph_neighbors=7,
+        graph_neighbors=15,
         random_state=None,
         n_jobs=None,
         htunning=False,
@@ -108,7 +127,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         self.htunning = htunning
         self.param_grid = param_grid
         self.n_simulations = n_simulations
-        self.method = method # Method to simulate the ji matrix for hypothesis testing. Options: 'bernoulli' or 'permute'.
+        self.method = method 
         self.X_test = X_test
         self.y_test = y_test
         self.y_real_label = y_real_label 
@@ -135,7 +154,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         X_unlabel : ndarray or Serie DataFrame of shape (n_unlabel, n_features)
             Unlabeled features matrix.
         """
-
+        logger.info("Obtaining the datasets: labeled and unlabeled data.")
+        
         is_df = False
         if isinstance(X, pd.DataFrame):
             is_df = True
@@ -152,18 +172,27 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         X_label, y_label = check_X_y(X_label, y_label)
 
         if is_df:
-            X_label = pd.DataFrame(X_label, columns=columns, index=idx[y != y.dtype.type(-1)])
-            X_unlabel = pd.DataFrame(X_unlabel, columns=columns, index=idx[y == y.dtype.type(-1)])
+            X_label = pd.DataFrame(X_label, 
+                                   columns=columns,
+                                   index=idx[y != y.dtype.type(-1)])
+            X_unlabel = pd.DataFrame(X_unlabel,
+                                     columns=columns,
+                                     index=idx[y == y.dtype.type(-1)])
 
         return X_label, y_label, X_unlabel
 
     def __create_neighborhood(self,X):
         """Create a neighborhood graph using the kneighbors_graph function."""
+        logger.info("Creating a neighborhood graph using the kneighbors_graph function.")
         return kneighbors_graph(X, n_neighbors=self.graph_neighbors, mode="distance", metric=self.distance, n_jobs=self.n_jobs).toarray()
 
     def __create_neighborhood_knn(self, X_ref, X_unlabel):
-        """Create a neighborhood graph using the KNeighborsClassifier."""
-        # Fit a knn classifier to the reference data
+        """Create a neighborhood graph using the KNeighborsClassifier.
+            Parameters:
+                X_ref : ndarray or DataFrame of shape (n_samples_ref, n_features)
+                X_unlabel : ndarray or DataFrame of shape (n_samples_unlabel, n_features)
+        """
+        # Fit a knn classifier to the reference data which is the labeled instances        
         knn = NearestNeighbors(n_neighbors=self.graph_neighbors)
         knn.fit(X_ref)
         # Get the distances and indices of the neighbors for the unlabeled data
@@ -174,10 +203,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         # Fill the weights matrix with the distances
         for i, (dist, idx) in enumerate(zip(distances, indices)):
             weights[i, idx] = dist
-        # Add 1 to each weight to avoid division by zero
-        #weights[weights != 0] += 1  # Add 1 to each weight to avoid division by zero
-        # Invert the weights to get the similarity
-        #weights = np.divide(1, weights, out=np.zeros_like(weights), where=weights != 0)
+
         # Return the weights matrix
         return weights
     
@@ -239,7 +265,6 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             else:
                 raise ValueError(f"Unknown simulation method: {self.method}")
 
-
             # Simulate test statistic
             ji = (iid_random * weights).sum(axis=1) 
             ji_matrix[:, s] = ji           
@@ -268,9 +293,9 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         ndarray of shape (n_instances,)
             p-values for each instance based on the comparison.
         """ 
-        # The lower the value of jobs, the more likely the instance is to be a good example to add to the labeled set.
-        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)  
-    
+        # The lower the value of jobs, the more likely the instance is to be a good example
+        # to add to the labeled set.
+        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)      
 
     # Fit function
 
@@ -292,38 +317,65 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             Fitted estimator
 
         """
+        logger.info("----------------------------------------------------------------")
+        logger.info("00 - Fitting the Setred classifier.")
+        logger.info("----------------------------------------------------------------")
         random_state = check_random_state(self.random_state)
        
         # This is for the case that the user does not provide the y_real_label
         # if yreal_label is provided it means that a simulated dataset is being used
         if self.y_real_label is not None:
             y_real_label = self.y_real_label
+        else:
+            logger.wanrning("No real labels provided for the unlabeled instances. Using the default -1 value.")
         
-        # Check and divide dataset between labeled and unlabeled data
+        logger.info("------------------------------------------------------------------------")
+        logger.info("01: Splitting the dataset into labeled and unlabeled data.")
+        logger.info("------------------------------------------------------------------------")
         X_label, y_label, X_unlabel = self.get_dataset(X, y)
 
-        # Check if the X_label is a DataFrame or ndarray
+        # Check if the input data is a DataFrame
         is_df = isinstance(X_label, pd.DataFrame)
 
         # Distinct the labels of the labeled instances
+        logger.info("------------------------------------------------------------------------")
+        logger.info("02: Checking the labels of the labeled instances.")
+        logger.info("------------------------------------------------------------------------")
         self.classes_ = np.unique(y_label)
+        logger.info(f"---- Distinct labels in the labeled instances: {self.classes_}")
 
-        # Each iteration will use the same number of candidates to pseudolabel
-        # The number of candidates to pseudolabel is the same as the number of labeled instances
-        each_iteration_candidates = X_label.shape[0]
-        
-        # Pool is the number of unlabel instances resampled in each iteration
+        logger.info("------------------------------------------------------------------------")
+        logger.info("03: Defining the number of candidates to be label.")
+        logger.info("------------------------------------------------------------------------")
+        # The number of candidates to pseudolabel is
+        # Pool is the number of unlabel instances resampled in each iteration to be labeled.
+        logger.info(f"---- Pool percentage: {self.poolsize}")
         pool = int(len(X_unlabel) * self.poolsize)
-
+        if pool == 0:
+            raise ValueError("The pool size is 0. Please increase the pool size or provide more unlabeled instances.")
+        logger.info(f"---- Pool size: {pool} instances to be resampled in each iteration.")
+        # The number of most confident predictions to be pseudolabeled in each iteration is the same as the number of labeled instances.
+        each_iteration_candidates = X_label.shape[0]
+        logger.info(f"---- Number of pseudolabel retained in each iteration before constructing the graph: {each_iteration_candidates} same as the number of labeled instances.")
+        
+        logger.info("------------------------------------------------------------------------")
+        logger.info("04: Cloning the base estimator and training it with the labeled instances.")
+        logger.info("------------------------------------------------------------------------")
         # Clone the base estimator to avoid modifying the original one
         self._base_estimator = skclone(self.base_estimator)        
         # Train the base estimator with the labeled instances    
         self._base_estimator.fit(X_label, y_label, **kwargs)
-
+        logger.info(f"---- Base estimator fitted with {X_label.shape[0]} labeled instances.")
         # Computation of prior probabilities based on the labeled instances
         # Should probabilities change every iteration or may it keep with the first L?
+        logger.info("------------------------------------------------------------------------")
+        logger.info("05: Calculating the prior probabilities based on the labeled instances.")
+        logger.info("------------------------------------------------------------------------")
         y_probabilities = calculate_prior_probability(y_label) 
-
+        logger.info(f"---- Prior probabilities: {y_probabilities}")
+        # If the base estimator is not a classifier, raise an error
+        if not is_classifier(self._base_estimator):
+            raise ValueError("The base estimator must be a classifier. Please provide a valid classifier.")
         # Sort the keys of y_probabilities to ensure consistent ordering
         sort_idx = np.argsort(list(y_probabilities.keys()))
 
@@ -335,6 +387,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             raise ValueError("No labeled instances found. Please provide labeled data.")
         # Initialize variables
         # Iteration counter
+        logger.info("------------------------------------------------------------------------")
+        logger.info("06: Initializing the self-training loop.")
+        logger.info("------------------------------------------------------------------------")
+        
         iteration = 1
         # List to store the accuracy of each iteration if y_real_label is provided
         if self.y_real_label is not None:
@@ -344,30 +400,56 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         for _ in range(self.max_iterations):          
             # messages 
             if (self.messages) and (iteration % self.view == 0):
-                print("---------------------------------------------------------------")
-                print(f"-------------------Iteration {iteration} Started ------------")
-                print("---------------------------------------------------------------")
+                logger.info("---------------------------------------------------------------")
+                logger.info(f"-------------------Iteration {iteration} Started ------------")
+                logger.info("---------------------------------------------------------------")
             # Resample unlabel candidates            
+            # Include all instances if pool is greater than the number of unlabel instances
             if self.y_real_label is not None:
-                U_, yU_ = resample(X_unlabel,y_real_label, replace = False, n_samples = pool, random_state = random_state)
+                U_, yU_ = resample(X_unlabel,
+                                   y_real_label, 
+                                   replace = False,
+                                   n_samples = pool,
+                                   random_state = random_state)
             else:
-                U_ = resample(X_unlabel, replace = False, n_samples = pool, random_state = random_state)
+                U_ = resample(X_unlabel,
+                              replace = False,
+                              n_samples = pool,
+                              random_state = random_state)
 
             if is_df:
                 U_ = pd.DataFrame(U_, columns = X_label.columns)
             
             # Predictions for the unlabeled instances
-            ## Predict probabilities                
+            ## Predict probabilities 
+            if (self.messages) and (iteration % self.view == 0):
+                logger.info("------------------------------------------------------------------------")
+                logger.info(f"07 iteration {iteration}: Predicting probabilities for the unlabeled instances.")
+                logger.info("------------------------------------------------------------------------")
+
             raw_predictions = self._base_estimator.predict_proba(U_)
-            ## Keep the probabilities of the most confident predictions
+            # Get the maximum probability for each instance 
             predictions = np.max(raw_predictions, axis = 1)
             ## Predict class labels
             class_predicted = np.argmax(raw_predictions, axis = 1)
             
+            if (self.messages) and (iteration % self.view == 0):
+                    logger.info("-----------------------------------------------------------------")
+                    logger.info(f"08 iteration {iteration}: Keeping the most confident predictions based on probabilities.")
+                    logger.info("-----------------------------------------------------------------")
+            
+
             # Keep the most confident predictions. 
             ### Total candidates to pseudolabel are the same as the number of labeled instances 
             indexes = predictions.argsort()[-each_iteration_candidates:]
-            #indexes =  np.where(predictions > 0.90)[0]
+            if (self.messages) and (iteration % self.view == 0):
+                logger.info(f"---- Number of candidates to pseudolabel: {len(indexes)}")
+                
+            # If the number of candidates to pseudolabel is less than the number of labeled instances,
+            # then we take all the candidates
+            if len(indexes) < each_iteration_candidates:
+                logger.warning(f"Number of candidates to pseudolabel is less than the number of labeled instances. Taking all the candidates.")
+                each_iteration_candidates = len(indexes)
 
             # L_ is a set with the most confident predictions according to the classifier
             if is_df:
@@ -391,10 +473,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             # Verification of the distribution of predicted classes in the unlabeled set   
             if (self.messages )and (iteration % self.view == 0):
                 if self.y_real_label is not None:
-                    print(f"Distribution of real classes in the unlabeled set:")
-                    print(pd.Series(yL_).value_counts().sort_index())
-                print(f"Distribution of the first  pseudolabel (predicted) candidates in the unlabeled set:")
-                # Order by the original class labels
+                    logger.info(f"If it is a simulated dataset, the distribution of real classes in the unlabeled set is:")
+                    logger.info(pd.Series(yL_).value_counts().sort_index())                    
+                logger.info(f"Distribution of the pseudolabel (predicted) candidates in the unlabeled set:")
+                logger.info(pd.Series(y_).value_counts().sort_index())
                 print(pd.Series(y_).value_counts().sort_index())
                 
             # Concatenate the labeled instances with the most confident predictions (pseudolabels). 
@@ -405,6 +487,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 pre_L = np.concatenate((X_label, L_), axis = 0)
                 pre_yL = np.concatenate((y_label, y_), axis = 0)
 
+            if (self.messages) and (iteration % self.view == 0):
+                logger.info("-----------------------------------------------------------------")
+                logger.info(f"09 iteration {iteration}: Creating the neighborhood graph for the labeled instances and the most confident predictions.")
+                logger.info("-----------------------------------------------------------------")
             # Create the neighborhood graph for the labeled instances and the most confident predictions
             #weights = self.__create_neighborhood(pre_L)      
                         
@@ -412,9 +498,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             iid_observed = (pre_yL[:, None] != pre_yL[None, :]).astype(int)
                        
             # Keep only weights and indicators for the most confident predictions L_
-            #weights = weights[-L_.shape[0]:, : X_label.shape[0]] #add this to compare against the labeled instances
-            iid_observed = iid_observed[-L_.shape[0]:, :X_label.shape[0]] #add this to compare against the labeled instances
-            
+            # weights = weights[-L_.shape[0]:, : X_label.shape[0]] #add this to compare against the labeled instances
+            #add this to compare against the labeled instances            
+            iid_observed = iid_observed[-L_.shape[0]:, :X_label.shape[0]] 
+                        
             # Create a vector with the classes of the most confident predictions in a way that matches
             # the order of the keys of the dictionary y_probabilities
             idx = np.searchsorted(np.array(list(y_probabilities.keys())), y_, sorter = sort_idx )
@@ -433,20 +520,20 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
 
             # Hypothesis testing  
             # jiobs is the observed value of the test statistic  
-            jiobs = (iid_observed*weights).sum(axis=1) # jiobs is the observed value of the test statistic
-            
+            jiobs = (iid_observed*weights).sum(axis=1) # jiobs is the observed value of the test statistic            
             # Expected value under the null hypothesis
             mu_h0 = p_wrong * weights_sum
             # Standard deviation under the null hypothesis
             sigma_h0 = np.sqrt((1 - p_wrong) * p_wrong * weights_square_sum)
-
             # Normalization of the observed ji statistic
             zobs = np.divide((jiobs - mu_h0), sigma_h0, out=np.zeros_like(sigma_h0), where=sigma_h0 != 0)
-            
             # Compute the p-value for the observed z-score
             oiobs = norm.sf(abs(zobs), 0, 1) # p-value observed, using the survival function
 
             # Simulate the ji matrix for hypothesis testing 
+            if (self.messages) and (iteration % self.view == 0):                
+                logger.info(f"Simualtion Cut Edge statistic iteration {iteration}:  Simulating the ji matrix for hypothesis testing.")
+                
             sim_results = self.simulate_ji_matrix(
                 p_wrong=p_wrong,    
                 iid_permute=iid_observed,            
@@ -474,9 +561,15 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             if self.y_real_label is not None:
                 yL_filtered = yL_[to_add]
             
-            # Filter the classes of the instances that are good examples to add to the labeled set
             y_filtered = y_[to_add]
-            
+            # Filter the classes of the instances that are good examples to add to the labeled set
+            if (self.messages) and (iteration % self.view == 0):
+                logger.info(f"Number of instances to add to the labeled set: {to_add.sum()} out of {len(to_add)} candidates.")  
+            # If there are no instances to add to the labeled set, break the loop
+            if L_filtered.shape[0] == 0:
+                logger.warning(f"No instances to add to the labeled set. Breaking the loop.")
+                break
+
             # Concatenate the labeled instances with the most confident predictions (pseudolabels) 
             # that are good examples to add to the labeled set
             if is_df:
@@ -503,24 +596,29 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             if (self.y_real_label is not None) :
                 accuracy.append(self._base_estimator.score(L_filtered, yL_filtered))
                 if (self.messages) and (iteration % self.view == 0):
-                    print(f"--------------------------------------------------------------")
-                    print(f"------Verification after filtering (Cut Edge Statistic)-------")
-                    print(f"--------------------------------------------------------------")
-                    print(f"Comparison between the filtered pseudolabels and the real labels of the unlabeled instances")
-                    # distributions
-                    print(f"Distribution of real classes in the unlabeled set:")
-                    print(pd.Series(yL_filtered).value_counts().sort_index())
-                    print(f"Distribution of the filtered pseudolabels in the unlabeled set:")
-                    print(pd.Series(y_filtered).value_counts().sort_index())
-                    print(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")               
-                    print(f"Iteration {iteration}: Report of the estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
-
-
+                    logger.info("--------------------------------------------------------------")
+                    logger.info(f"Simulation Verification after filtering (Cut Edge Statistic)")
+                    logger.info("--------------------------------------------------------------")                                        
+                    logger.info(f"Comparison between the filtered pseudolabels and the real labels of the unlabeled instances")
+                    logger.info(f"Iteration {iteration} - Accuracy: {accuracy[-1]:.4f}")
+                    logger.info(f"Distribution of real classes in the filtered unlabeled set:")
+                    logger.info(pd.Series(yL_filtered).value_counts().sort_index())
+                    logger.info(f"Distribution of the filtered pseudolabels in the unlabeled set:")
+                    logger.info(pd.Series(y_filtered).value_counts().sort_index())
+                    logger.info(f"Iteration {iteration}: Report of the estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
 
             # Retrain the base estimator with the new labeled instances
+            if (self.messages) and (iteration % self.view == 0):    
+                logger.info("-----------------------------------------------------------------")
+                logger.info(f"10 iteration {iteration}: Retraining the base estimator with the new labeled instances.")
+                logger.info("-----------------------------------------------------------------")                    
             if self.htunning:
                 param_grid = self.param_grid
-                grid_search = GridSearchCV(self._base_estimator, param_grid,scoring='accuracy', cv=5,error_score=np.nan)
+                grid_search = GridSearchCV(self._base_estimator, 
+                                           param_grid,
+                                           scoring='accuracy',
+                                           cv=5,
+                                           error_score=np.nan)
                 # Train validation split
                 X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label, y_label, 
                                                                           test_size=0.5, 
@@ -533,56 +631,47 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                 self._base_estimator.fit(X_retrain, y_retrain, **kwargs)  # I, Juan Felipe, have added this line to retrain the base estimator with the best parameters.
                 if (iteration % self.view == 0 )and (self.messages):
                     # Print accuracy based on reval sets
-                    print(f"--------------------------------------------------------------")
-                    print(f"Verification of the retraining performance")
-                    print(f"Iteration {iteration} - Accuracy: {self._base_estimator.score(X_reval, y_reval):.4f}")                                                    
+                    logger.info("--------------------------------------------------------------")
+                    logger.info(f"Verification of the retraining performance")
+                    logger.info(f"Iteration {iteration} - Accuracy: {self._base_estimator.score(X_reval, y_reval):.4f}")                                              
                     
                     if (self.y_real_label is not None):
-                        print(f"------------------------Updated Estimator---------------------------------------")
-                        print(f"Comparison between the pseudolabels and the real labels of the unlabeled instances")
-                        print(f"Iteration {iteration} - Accuracy: {self._base_estimator.score(L_filtered, yL_filtered):.4f}")
-                        print(f"Iteration {iteration}: Report of the upadated estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
+                        logger.info("Updated Estimator ----------------------------------------")
+                        logger.info(f"Comparison between the pseudolabels and the real labels of the unlabeled instances")
+                        logger.info(f"Iteration {iteration} - Accuracy: {self._base_estimator.score(L_filtered, yL_filtered):.4f}")
+                        logger.info(f"Iteration {iteration}: Report of the upadated estimator \n: {classification_report(yL_filtered, self._base_estimator.predict(L_filtered))}")
                         
-            else:
+            else:                
                 self._base_estimator.fit(X_label, y_label, **kwargs)    # I, Juan Felipe, have added this line to retrain the base estimator in each iteration.
             
             # Simulation checkings
             if self.y_real_label is not None:
                 if (iteration % self.view  == 0 )and (self.messages):
-                    print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
-                    print("Distribution of labels in the new labeled set:\n")
-                    print(pd.Series(y_label).value_counts())
+                    logger.info("--------------------------------------------------------------")
+                    logger.info("Verification of the simulation performance")
+                    logger.info(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
+                    logger.info("Distribution of labels in the new labeled set:\n")     
+                    logger.info(pd.Series(y_label).value_counts())
                     if self.htunning:
-                        print(f"Best parameters found: {best_params}")
+                        logger.info(f"Best parameters found: {best_params}")                        
                     if (len(self.X_test) > 0):
                         y_pred = self._base_estimator.predict(self.X_test)
                         # Generate the classification report
                         report = classification_report(self.y_test, y_pred)           
-                        print("--------------------------------------------------------------")
-                        print("Verification of the test set performance")
-                        print(f"Iteration {iteration} - Classification report on the test set:")                    
-                        print(report)
-            if self.y_real_label is not None:             
-                if (iteration % self.view  == 0 )and (self.messages):
-                    print(f"Iteration {iteration} - {len(X_label)} labeled instances, {len(X_unlabel)} unlabeled instances left")
-                    print("Distribution of labels in the new labeled set:\n")
-                    print(pd.Series(y_label).value_counts())
-                    if self.htunning:
-                        print(f"Best parameters found: {best_params}")
-                    if (len(self.X_test) > 0):
-                        y_pred = self._base_estimator.predict(self.X_test)
-                        # Generate the classification report
-                        report = classification_report(self.y_test, y_pred)           
-                        print("--------------------------------------------------------------")
-                        print("Verification of the test set performance")
-                        print(f"Iteration {iteration} - Classification report on the test set:")                    
-                        print(report)
+                        logger.info("Verification of the test set performance")
+                        logger.info(f"Iteration {iteration} - Classification report on the test set:")              
+                        logger.info(report)
+                        
+
             if (self.messages) and (iteration % self.view == 0):
-                print("\n")
-                print("---------------------------------------------------------------")
-                print(f"-------------------Iteration {iteration} finished ------------")
-                print("---------------------------------------------------------------")
+                logger.info("---------------------------------------------------------------")
+                logger.info(f"-------------------Iteration {iteration} finished ------------")
+                logger.info("---------------------------------------------------------------")
             iteration += 1
+        
+        logger.info("----------------------------------------------------------------")
+        logger.info("Setred classifier fitted successfully.")
+        logger.info("----------------------------------------------------------------")
         
         if self.y_real_label is not None:
             self.accuracy_ = accuracy
