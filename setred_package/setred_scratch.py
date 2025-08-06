@@ -123,7 +123,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         self.htunning = htunning
         self.param_grid = param_grid
         self.n_simulations = n_simulations
-        self.method = method 
+        self.method = method
         self.X_test = X_test
         self.y_test = y_test
         self.y_real_label = y_real_label 
@@ -290,7 +290,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         """ 
         # The lower the value of jobs, the more likely the instance is to be a good example
         # to add to the labeled set.
-        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)      
+        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)
 
     # Fit function
 

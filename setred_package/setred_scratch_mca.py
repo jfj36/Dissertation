@@ -123,7 +123,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         self.htunning = htunning
         self.param_grid = param_grid
         self.n_simulations = n_simulations
-        self.method = method 
+        self.method = method
         self.X_test = X_test
         self.y_test = y_test
         self.y_real_label = y_real_label 
@@ -151,7 +151,6 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             Unlabeled features matrix.
         """
         logger.info("Obtaining the datasets: labeled and unlabeled data.")
-        
         is_df = False
         if isinstance(X, pd.DataFrame):
             is_df = True
@@ -290,7 +289,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         """ 
         # The lower the value of jobs, the more likely the instance is to be a good example
         # to add to the labeled set.
-        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)      
+        return 1 - np.mean(jiobs[:,None] < ji_matrix, axis=1)
 
     # Fit function
 
@@ -324,7 +323,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             y_real_label = self.y_real_label
         else:
             logger.warning("No real labels provided for the unlabeled instances. Using the default -1 value.")
-        
+
         logger.info("------------------------------------------------------------------------")
         logger.info("01: Splitting the dataset into labeled and unlabeled data.")
         logger.info("------------------------------------------------------------------------")
@@ -334,7 +333,6 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         logger.info("------------------------------------------------------------------------")
         logger.info("01-00: Splitting the datasets into dataset for modelling and datasets for geometrical comparisons.")
         logger.info("------------------------------------------------------------------------")
-        
         if mod_features is not None:
             # Check if the features are in the DataFrame
             if isinstance(X_label_entire, pd.DataFrame):
@@ -371,11 +369,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         logger.info("------------------------------------------------------------------------")
         logger.info("03: Defining the number of candidates to be label.")
         logger.info("------------------------------------------------------------------------")
-        # The number of candidates to pseudolabel is
+        
         # Pool is the number of unlabel instances resampled in each iteration to be labeled.
         logger.info(f"---- Pool percentage: {self.poolsize}")
         # Pool is the number of unlabel instances resampled in each iteration
-
         pool = int(len(X_unlabel) * self.poolsize)
         if pool == 0:
             raise ValueError("The pool size is 0. Please increase the pool size or provide more unlabeled instances.")
@@ -443,10 +440,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                                       random_state = random_state)
             else:
                 if X_unlabel.shape[0] < pool:
-                    logger.warning(f"Not enough unlabeled instances to resample {pool}. Stopping the fitting process.")                    
+                    logger.warning(f"Not enough unlabeled instances to resample {pool}. Stopping the fitting process.")
                     return self
                 U_, Ug_ = resample(X_unlabel,
-                                   X_ungraph, 
+                                   X_ungraph,
                                    replace = False,
                                    n_samples = pool,
                                    random_state = random_state)
@@ -512,8 +509,8 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                     logger.info(pd.Series(yL_).value_counts().sort_index())
                 logger.info(f"Distribution of the pseudolabel (predicted) candidates in the unlabeled set:")
                 logger.info(pd.Series(y_).value_counts().sort_index())
-                
-                
+
+
             # Concatenate the labeled instances with the most confident predictions (pseudolabels). 
             if is_df:
                 pre_L = pd.concat([X_label, L_])
@@ -598,11 +595,13 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             
             if self.y_real_label is not None:
                 yL_filtered = yL_[to_add]
-            
+
             y_filtered = y_[to_add]
             # Filter the classes of the instances that are good examples to add to the labeled set
             if (self.messages) and (iteration % self.view == 0):
-                logger.info(f"Number of instances to add to the labeled set: {to_add.sum()} out of {len(to_add)} candidates.")  
+                logger.info(f"Number of instances to add to the labeled set: {to_add.sum()} out of {len(to_add)} candidates.")
+                logger.info(f"Distribution of the filtered pseudolabels in the unlabeled set:")
+                logger.info(pd.Series(y_filtered).value_counts().sort_index())
             # If there are no instances to add to the labeled set, break the loop
             if L_filtered.shape[0] == 0:
                 logger.warning(f"No instances to add to the labeled set. Breaking the loop.")
@@ -611,7 +610,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
             # that are good examples to add to the labeled set
             if is_df:
                 X_label = pd.concat([X_label, L_filtered])
-                X_graph = pd.concat([X_graph, Lg_filtered])                
+                X_graph = pd.concat([X_graph, Lg_filtered])
             else: 
                 X_label = np.concatenate([X_label, L_filtered], axis = 0)
                 X_graph = np.concatenate([X_graph, Lg_filtered], axis = 0)
@@ -661,10 +660,11 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
                                            cv=5,
                                            error_score=np.nan)
                 # Train validation split
-                X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label, y_label, 
+                X_retrain, X_reval, y_retrain, y_reval = train_test_split(X_label,
+                                                                          y_label, 
                                                                           test_size=0.5, 
                                                                           random_state=random_state,
-                                                                          stratify=y_label)                
+                                                                          stratify=y_label)
                 grid_search.fit(X_reval, y_reval)
                 # Best parameters
                 best_params = grid_search.best_params_                 
