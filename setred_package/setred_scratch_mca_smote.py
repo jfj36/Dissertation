@@ -68,7 +68,7 @@ from sslearn.utils import calculate_prior_probability, check_classifier
 # ------------------------------------------------------------------------------------------#
 # --------------------------------SETRED----------------------------------------------------#
 # ------------------------------------------------------------------------------------------#
-class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
+class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
     def __init__( self,
         base_estimator=KNeighborsClassifier(n_neighbors=3),
         max_iterations=40,
@@ -132,6 +132,28 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin):
         self.y_real_label = y_real_label 
         self.view = view
         self.messages = messages
+        # declare learned attrs so pickling works even if unfitted
+        
+        self.accuracy_ = None
+        self.XU_ = None
+        self.yU_ = None
+        self.X_label_entire_smote_ = None
+        self.y_label_smote_ =  None
+        self.X_label_ = None  
+        self.idx_ = None
+        self.y_label_ = None
+        self._base_estimator = None
+        self.prior_probabilities_ =  None
+        self.y_pseudolabel = None
+        self.p_wrong_ = None
+        self.weights_ = None
+        self.iid_observed_ = None
+        self.jiobs_ = None
+        self.ji_matrix_ = None
+        self.zi_matrix_ = None
+        self.oi_matrix_ = None
+        self.zobs_ = None
+        self.oiobs_ = None
 
 
     def get_dataset(self, X, y):
