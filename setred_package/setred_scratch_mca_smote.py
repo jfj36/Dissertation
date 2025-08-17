@@ -175,7 +175,9 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
         X_unlabel : ndarray or Serie DataFrame of shape (n_unlabel, n_features)
             Unlabeled features matrix.
         """
-        logger.info("Obtaining the datasets: labeled and unlabeled data.")
+        if (self.messages):
+            logger.info("Obtaining the datasets: labeled and unlabeled data.")
+        
         is_df = False
         if isinstance(X, pd.DataFrame):
             is_df = True
@@ -337,11 +339,14 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
         self : Setred 
             Fitted estimator
         """
-        logger.info("----------------------------------------------------------------")
-        logger.info("00 - Fitting the Setred classifier.")
-        logger.info("----------------------------------------------------------------")
-        random_state = check_random_state(self.random_state)
-        logger.info("SMOTE resampling will be used to balance the labeled instances.")
+        if (self.messages):
+            logger.info("----------------------------------------------------------------")
+            logger.info("00 - Fitting the Setred classifier.")
+            logger.info("----------------------------------------------------------------")
+            logger.info("SMOTE resampling will be used to balance the labeled instances.")
+        
+        random_state = check_random_state(self.random_state)            
+        
         self.sm = SMOTE(random_state=self.random_state)
 
        
@@ -352,15 +357,16 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
         else:
             logger.warning("No real labels provided for the unlabeled instances. Using the default -1 value.")
 
-        logger.info("------------------------------------------------------------------------")
-        logger.info("01: Splitting the dataset into labeled and unlabeled data.")
-        logger.info("------------------------------------------------------------------------")
+        if (self.messages):
+            logger.info("------------------------------------------------------------------------")
+            logger.info("01: Splitting the dataset into labeled and unlabeled data.")
+            logger.info("------------------------------------------------------------------------")
         # Check and divide dataset between labeled and unlabeled data
         X_label_entire, y_label, X_unlabel_entire = self.get_dataset(X, y)
-        
-        logger.info("-------------------------------------------------------------------")
-        logger.info("01-00: Creating Smote Dataset")
-        logger.info("-------------------------------------------------------------------")        
+        if (self.messages):
+            logger.info("-------------------------------------------------------------------")
+            logger.info("01-00: Creating Smote Dataset")
+            logger.info("-------------------------------------------------------------------")        
         # Generate synthetic data considering if X_label_entire is a DataFrame or an array
         if isinstance(X_label_entire, pd.DataFrame):
             X_label_entire_smote, y_label_smote = self.sm.fit_resample(X_label_entire, y_label)
@@ -368,9 +374,11 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
             X_label_entire_smote, y_label_smote = self.sm.fit_resample(X_label_entire, y_label)
         
         # Check if the features are provided
-        logger.info("------------------------------------------------------------------------")
-        logger.info("01-00: Splitting the datasets into dataset for modelling and datasets for geometrical comparisons.")
-        logger.info("------------------------------------------------------------------------")
+        if (self.messages):
+            logger.info("------------------------------------------------------------------------")
+            logger.info("01-00: Splitting the datasets into dataset for modelling and datasets for geometrical comparisons.")
+            logger.info("------------------------------------------------------------------------")
+        
         if mod_features is not None:
             # Check if the features are in the DataFrame
             if isinstance(X_label_entire, pd.DataFrame):
@@ -402,42 +410,55 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
         is_df = isinstance(X_label, pd.DataFrame)
 
         # Distinct the labels of the labeled instances
-        logger.info("------------------------------------------------------------------------")
-        logger.info("02: Checking the labels of the labeled instances.")
-        logger.info("------------------------------------------------------------------------")
+        if (self.messages):
+            logger.info("------------------------------------------------------------------------")
+            logger.info("02: Checking the labels of the labeled instances.")
+            logger.info("------------------------------------------------------------------------")
+        
         self.classes_ = np.unique(y_label)
-        logger.info(f"---- Distinct labels in the labeled instances: {self.classes_}")
+        if (self.messages):
+            logger.info(f"---- Distinct labels in the labeled instances: {self.classes_}")
 
-        logger.info("------------------------------------------------------------------------")
-        logger.info("03: Defining the number of candidates to be label.")
-        logger.info("------------------------------------------------------------------------")
+            logger.info("------------------------------------------------------------------------")
+            logger.info("03: Defining the number of candidates to be label.")
+            logger.info("------------------------------------------------------------------------")
         
         # Pool is the number of unlabel instances resampled in each iteration to be labeled.
-        logger.info(f"---- Pool percentage: {self.poolsize}")
+        if (self.messages):
+            logger.info(f"---- Pool percentage: {self.poolsize}")
         # Pool is the number of unlabel instances resampled in each iteration
         pool = int(len(X_unlabel) * self.poolsize)
         if pool == 0:
             raise ValueError("The pool size is 0. Please increase the pool size or provide more unlabeled instances.")
-        logger.info(f"---- Pool size: {pool} instances to be resampled in each iteration.")
-        # The number of most confident predictions to be pseudolabeled in each iteration is the same as the number of labeled instances.
-        each_iteration_candidates = X_label.shape[0]
-        logger.info(f"---- Number of pseudolabel retained in each iteration before constructing the graph: {each_iteration_candidates} same as the number of labeled instances.")
         
-        logger.info("------------------------------------------------------------------------")
-        logger.info("04: Cloning the base estimator and training it with the labeled instances.")
-        logger.info("------------------------------------------------------------------------")
-        # Clone the base estimator to avoid modifying the original one
+        if (self.messages):
+            logger.info(f"---- Pool size: {pool} instances to be resampled in each iteration.")
+            # The number of most confident predictions to be pseudolabeled in each iteration is the same as the number of labeled instances.
+        each_iteration_candidates = X_label.shape[0]
+        
+        if (self.messages):
+            logger.info(f"---- Number of pseudolabel retained in each iteration before constructing the graph: {each_iteration_candidates} same as the number of labeled instances.")
+            
+            logger.info("------------------------------------------------------------------------")
+            logger.info("04: Cloning the base estimator and training it with the labeled instances.")
+            logger.info("------------------------------------------------------------------------")
+        
+        # Clone the base estimator to avoid modifying the original one        
         self._base_estimator = skclone(self.base_estimator)
         # Train the base estimator with the labeled instances
         self._base_estimator.fit(X_label_smote, y_label_smote, **kwargs)
-        logger.info(f"---- Base estimator fitted with {X_label_smote.shape[0]} labeled instances.")
-        # Computation of prior probabilities based on the labeled instances
-        # Should probabilities change every iteration or may it keep with the first L?
-        logger.info("------------------------------------------------------------------------")
-        logger.info("05: Calculating the prior probabilities based on the labeled instances.")
-        logger.info("------------------------------------------------------------------------")
+        if (self.messages):
+            logger.info(f"---- Base estimator fitted with {X_label_smote.shape[0]} labeled instances.")
+            # Computation of prior probabilities based on the labeled instances
+            # Should probabilities change every iteration or may it keep with the first L?
+            logger.info("------------------------------------------------------------------------")
+            logger.info("05: Calculating the prior probabilities based on the labeled instances.")
+            logger.info("------------------------------------------------------------------------")
+        
         y_probabilities = calculate_prior_probability(y_label)
-        logger.info(f"---- Prior probabilities: {y_probabilities}")
+        
+        if (self.messages):
+            logger.info(f"---- Prior probabilities: {y_probabilities}")
         # If the base estimator is not a classifier, raise an error
         if not is_classifier(self._base_estimator):
             raise ValueError("The base estimator must be a classifier. Please provide a valid classifier.")
@@ -452,9 +473,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
             raise ValueError("No labeled instances found. Please provide labeled data.")
         # Initialize variables
         # Iteration counter
-        logger.info("------------------------------------------------------------------------")
-        logger.info("06: Initializing the self-training loop.")
-        logger.info("------------------------------------------------------------------------")
+        if (self.messages):
+            logger.info("------------------------------------------------------------------------")
+            logger.info("06: Initializing the self-training loop.")
+            logger.info("------------------------------------------------------------------------")
 
         iteration = 1
         # List to store the accuracy of each iteration if y_real_label is provided
@@ -783,10 +805,10 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
                 logger.info(f"-------------------Iteration {iteration} finished ------------")
                 logger.info("---------------------------------------------------------------")
             iteration += 1
-
-        logger.info("----------------------------------------------------------------")
-        logger.info("Setred classifier fitted successfully.")
-        logger.info("----------------------------------------------------------------")
+        if (self.messages):
+            logger.info("----------------------------------------------------------------")
+            logger.info("Setred classifier fitted successfully.")
+            logger.info("----------------------------------------------------------------")
         
         if self.y_real_label is not None:
             self.accuracy_ = accuracy
