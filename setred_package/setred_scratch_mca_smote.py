@@ -501,7 +501,7 @@ class Setred_scratch(BaseEstimator, MetaEstimatorMixin,ClassifierMixin):
                                       y_real_label,
                                       replace = False,
                                       n_samples = pool,
-                                      random_state = random_state)
+                                      random_state = None)
             else:
                 if X_unlabel.shape[0] < pool:
                     logger.warning(f"Not enough unlabeled instances to resample {pool}. Stopping the fitting process.")
